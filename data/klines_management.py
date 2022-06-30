@@ -188,9 +188,11 @@ class klines_manager(indicators_manager):
                 # print(f"Generating Tide {instrument}_{freq} ...")
                 # Tide = tide(sensitivity=50,thresholds=10,lookback_windows=[5,20,67])
                 # klines = calc_tides(klines,sensitivity=self.sensitivity, thresholds=self.thresholds, windows=self.lookback_windows)
+                klines = self._preprocess_klines(klines)
                 if self.indicators is not None:
                     klines = self._calc_indicators(klines)
-  
+                klines = self._postprocess_klines(klines)
+                
                 klines=klines.add_prefix(f"{freq}_")
                 klines.dropna(inplace=True)
                 klines_indicators_TF_dict[freq] = klines

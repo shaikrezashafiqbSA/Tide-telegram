@@ -4,7 +4,7 @@ import pandas_ta
 import pandas_ta as ta
 import warnings
 
-from strategy.indicators import calc_tides, calc_continuous_resample
+from strategy.indicators import calc_tides,calc_slopes, calc_continuous_resample
 
 class indicators_manager:
     """
@@ -27,7 +27,7 @@ class indicators_manager:
         # Build list according to what ta.Strategy accepts
         indicators_params = []
         for indicator,params in indicators.items():
-            if indicator == "tide":
+            if indicator in ["tide","slopes"]:
                 continue
             kind = indicator
             if len(params) == 1:
@@ -53,7 +53,8 @@ class indicators_manager:
                     indicators_params.append(ind_dict_i)
        
         self.indicators_factory = ta.Strategy(name="general_bot",ta=indicators_params)
-
+        
+        
     def _calc_indicators(self,klines: pd.DataFrame,workers=0):
         if "tide" in self.indicators.keys():
             sensitivity = self.indicators["tide"]["sensitivity"]
@@ -71,18 +72,37 @@ class indicators_manager:
                 
             klines = calc_tides(klines,sensitivity=sensitivity, thresholds=thresholds, windows=windows)
             
+        if "slopes" in self.indicators.keys():
+            slope_lengths = self.indicators["slopes"]["slope_lengths"]
+            scaling_factor = self.indicators["slopes"]["scaling_factor"]
+            lookback = self.indicators["slopes"]["lookback"]
+            upper_quantile = self.indicators["slopes"]["upper_quantile"]
+            logRet_norm_window = self.indicators["slopes"]["logRet_norm_window"]
+            
+            for sf in scaling_factor:
+                for lb in lookback:
+                    for uq in upper_quantile:
+                        for lw in logRet_norm_window:
+                            suffix = f"{lb}_{lw}"
+                            # ensure all int or float
+                            klines = calc_slopes(klines, 
+                                                 slope_lengths=slope_lengths,
+                                                 scaling_factor=sf, 
+                                                 lookback=lb, 
+                                                 upper_quantile=uq,
+                                                 logRet_norm_window=lw, 
+                                                 suffix=suffix)
+        
         klines.ta.cores = workers
         klines.ta.strategy(self.indicators_factory,verbose=False) 
         
         return klines
         
     def _preprocess_klines(self,klines: pd.DataFrame):
-        print("NO PREPROCESSING OF KLINES")
         return klines
    
     
     def _postprocess_klines(self,klines: pd.DataFrame):
-        print("NO POSTPROCESSING OF KLINES")
         return klines
     # def onPayload(self,payload):
     #     # Calculate TA stuff here

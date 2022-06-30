@@ -305,7 +305,44 @@ def calc_tides(df, sensitivity:int=50, thresholds:int=10, windows:np.ndarray=np.
     
     return df
     
+def calc_slopes(df0,
+                slope_lengths:list=[7,10,14,20,28,40,56,80],
+                scaling_factor:float = 1.0,
+                lookback:int = 500,
+                upper_quantile = 0.9,
+                logRet_norm_window = 10,
+                suffix=""):
+    hour_List = np.array(slope_lengths) * scaling_factor
+    min_List = [int(hour) for hour in hour_List]
+    close = list(df0.filter(regex="close$").columns)[0]
+    df = df0.copy()
+    df_temp = pd.DataFrame()
+    df_temp['logRet'] = np.log(1+df[close].pct_change())
+    df_temp['logRet_norm'] = df_temp['logRet'] / df_temp['logRet'].rolling(logRet_norm_window).std()
     
+    # we need to fillna(0) because some pockets have zero mobvement in price => o/0 = nan
+    df_temp['logRet_norm'] = df_temp['logRet_norm'].fillna(0)
+    df_temp['logLevel_norm'] = df_temp['logRet_norm'].rolling(lookback).sum()
+
+    df_temp['logRet_norm'].isna().sum()
+    df_temp['logLevel_norm'].isna().sum()
+
+    slopeNames = []
+    
+    for minutes in min_List:
+        slope_name = 'slope_' + str(minutes)
+        slopeNames.append(slope_name)
+        df_temp[slope_name] = (df_temp['logLevel_norm'] - df_temp['logLevel_norm'].shift(periods=minutes)) / minutes
+        
+    if suffix != "":
+        suffix = "_"+suffix
+    df[f'slope_avg{suffix}'] = df_temp[slopeNames].mean(axis=1, skipna=False)
+    lower_quantile = round(1.0 - upper_quantile, 3)
+    
+
+    df[f'slope_u{suffix}'] = df[f'slope_avg{suffix}'].rolling(lookback).quantile(upper_quantile)
+    df[f'slope_l{suffix}'] = df[f'slope_avg{suffix}'].rolling(lookback).quantile(lower_quantile)
+    return df
     
 @nb.njit(cache=True)
 def continuous_resampling(closetime, open_, high, low, close, vol, x):
@@ -469,5 +506,5 @@ def tide_colors(series):
 
 if __name__ == "__main__":
     
-    print("hello")
+    print("calculating dollar bars")
     dollar_bars = get_dollar_bars(df,dollar_threshold=10000)

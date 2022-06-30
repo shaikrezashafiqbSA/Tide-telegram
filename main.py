@@ -10,13 +10,16 @@ from data.klines_management import klines_manager
 
 """
 TODO:
-    - 1hour continuous resample for 4h, 1d, 1w to get stabler, continuouos tides
+    - mx vs price warnings
 
 """
-def tides_update():
-    send_to_telegram = True # True
-    update_db = True # True
-    resample = True
+    
+def tides_update(send_to_telegram =True,
+                 update_db = True,
+                 resample = True):
+    # send_to_telegram = True # True
+    # update_db = True # True
+    # resample = True
     if send_to_telegram:
         telegram_auth_token = "5403909034:AAF5TVshAENvwEvhNRQ_H7Jf519nPGrgnxA"
         chat_id = -1001604110225
@@ -71,20 +74,22 @@ def tides_update():
                   "CME_MINI_ES1!",
                   "CME_MINI_NQ1!"
                   ]
+    
+    # def update_tide:
     if update_db:
         Klines_Manager.load_equities(instruments=instruments)
     
     Klines_Manager.load_equities_from_db(instruments)
     
     Klines_Manager.calc_indicators()
-    df=Klines_Manager.klines_indicators_dict["SGX_SGP1!"].copy()
-    
+    # return
+    klines_indicators_dict = Klines_Manager.klines_indicators_dict
     #%%
     
     from performance.plots import get_plotly#,calc_performance
     date_now = dt.now().strftime("%Y-%m-%d")
     date_1_month_ago =(dt.now() - timedelta(days=60)).strftime("%Y-%m-%d")
-    get_plotly(Klines_Manager.klines_indicators_dict,
+    get_plotly(klines_indicators_dict,
                window=[date_1_month_ago, date_now],
                cols_to_plot=["MFI_14"])
     t2 = np.round(time.time()-t1,2)
@@ -100,7 +105,6 @@ def tides_update():
     import dataframe_image as dfi 
     
     pd.set_option('display.max_columns', None)
-    klines_indicators_dict = Klines_Manager.klines_indicators_dict
     
     metrics_df = calc_tide_metrics(klines_indicators_dict)
     dfi.export(metrics_df, f"telegram/summary.png")
@@ -116,7 +120,22 @@ def tides_update():
         bot.send_message(text=msg, chat_id=chat_id)
         
         print(msg)
+        
+    return klines_indicators_dict
 #%%
-scheduler = BackgroundScheduler(daemon=False,timezone="Singapore")
-scheduler.add_job(tides_update, 'cron', minute='20')
-scheduler.start()
+if __name__ == "__main__":
+    test= False
+    if not test:
+        scheduled_minute = '30'
+        scheduler = BackgroundScheduler(daemon=False,timezone="Singapore")
+        scheduler.add_job(func=tides_update, 
+                          trigger='cron',
+                          minute=scheduled_minute)
+        scheduler.start()
+        print(f"SCHEDULER STARTED: running every {scheduled_minute}mins")
+    else:
+        klines_indicators_dict = tides_update(send_to_telegram=True,
+                                              update_db = True)
+        
+        df = klines_indicators_dict["SGX_TWN1!"].copy()
+    
