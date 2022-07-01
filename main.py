@@ -5,6 +5,7 @@ from datetime import timedelta
 import time
 import telegram
 from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.schedulers.blocking import BlockingScheduler
 
 from data.klines_management import klines_manager
 
@@ -34,7 +35,7 @@ def tides_update(send_to_telegram =True,
         bot = telegram.Bot(telegram_auth_token)
         bot.send_message(text="job starting ...", chat_id=chat_id)
     
-    config = {"general":{"klines_db_location":"/Users/Shaik Reza Shafiq/Desktop/Tide/database/TV_klines.db",
+    config = {"general":{"klines_db_location": "D:/OneDrive/database/TV_klines.db",#"/Users/Shaik Reza Shafiq/Desktop/Tide/database/TV_klines.db",
                          "output": "telegram/"},
               "strategy": {"timeframes": ["1h","4h", "24h", "48h"],
                           "indicators": {'tide': {'window': [5,20,67], "sensitivity": [10], "thresholds": [5]},
@@ -97,7 +98,7 @@ def tides_update(send_to_telegram =True,
     
     # Send html file
     if send_to_telegram:
-        file = open("D:/Users/Shaik Reza Shafiq/Desktop/Tide/tides.html",'rb')
+        file = open("tides.html",'rb')
         bot.send_document(chat_id, file)
         print("Sent tides.html to telegram")
     #%%   
@@ -127,15 +128,16 @@ if __name__ == "__main__":
     test= False
     if not test:
         scheduled_minute = '30'
-        scheduler = BackgroundScheduler(daemon=False,timezone="Singapore")
+        # scheduler = BackgroundScheduler(daemon=False,timezone="Singapore")
+        scheduler = BlockingScheduler(timezone="Singapore")
         scheduler.add_job(func=tides_update, 
                           trigger='cron',
                           minute=scheduled_minute)
         scheduler.start()
         print(f"SCHEDULER STARTED: running every {scheduled_minute}mins")
     else:
-        klines_indicators_dict = tides_update(send_to_telegram=True,
-                                              update_db = True)
+        klines_indicators_dict = tides_update(send_to_telegram=False,
+                                              update_db = False)
         
         df = klines_indicators_dict["SGX_TWN1!"].copy()
     

@@ -154,7 +154,7 @@ def get_plotly(df_dict,
     fig.update_yaxes(showgrid=True,gridwidth=1,gridcolor='rgb(61,58,58)')
     fig.update_xaxes(color="grey")
     fig.update_yaxes(color="grey")
-    fig.show()
+    # fig.show()
     now = dt.now()
     publish_date = str(dt(now.year,now.month,now.day))[0:10]
     fig.write_html("tides.html")

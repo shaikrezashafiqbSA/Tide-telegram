@@ -25,7 +25,7 @@ setup(
         "matplotlib",
         "plotly",
         "pandas_ta",
-        "plotly_resampler"
+        "plotly_resampler",
         "tvdatafeed",
         "python-telegram-bot",
         "dataframe_image",
