@@ -135,9 +135,11 @@ if __name__ == "__main__":
                               }
         
         tide_equities = TidesUpdate(instruments=instruments_equities,
+                                    db_update = True,
                                     send_to_telegram = True)
         
         tide_crypto = TidesUpdate(instruments=instruments_equities,
+                                  db_update = True,
                                   send_to_telegram = True)
         
         # scheduler = BackgroundScheduler(daemon=False,timezone="Singapore")
