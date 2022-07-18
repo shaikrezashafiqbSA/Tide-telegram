@@ -220,23 +220,28 @@ if __name__ == "__main__":
     #%%
     import ccxt 
     import pandas as pd
-    client = ccxt.ftx()
+    client = ccxt.kucoin()
     markets = client.load_markets()
     markets_df = pd.DataFrame(markets).T
     fut = pd.DataFrame([m for m in markets.values() if m["swap"]])
     spot =  pd.DataFrame([m for m in markets.values() if m["spot"]])
-    
-    since = "2022-07-15"
-    since = client.parse8601(since)
-    ohlcv = client.fetch_ohlcv(symbol="ETH/USD", timeframe="1h", since=since)
+    #%%
+    client=ccxt.kucoinfutures()
+    try:
+        ohlcv = client.fetch_ohlcv(symbol="BTC/USDT", timeframe="1h", since=None, limit=None)
+    except Exception as e:
+        error = e
+    # since = "2022-07-15"
+    # since = client.parse8601(since)
+    # ohlcv = client.fetch_ohlcv(symbol="ETH/USD", timeframe="1h", since=since)
     # mark = client.fetch_ohlcv(symbol="ETH/USD", timeframe="1h", since=since, params={"price":"index"})
     #%% funding rates
     from data.klines_ccxt import check_db
-    db_tables = check_db()
+    db_tables = check_db(db_path="D:/OneDrive/database/kucoin_klines.db")
     
     #%%
     from data.klines_ccxt import get_klines
     # test = get_klines(instrument="ftx_BTC-PERP_1h", update=False, reload=False)
-    test = get_klines(instrument="ftx_BTC/USD_1h", update=False, reload=False)
+    test = get_klines(instrument="kucoinfutures_BTC/USD_1h", update=False, reload=False)
     
 
