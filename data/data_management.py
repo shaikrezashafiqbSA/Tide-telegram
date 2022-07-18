@@ -17,7 +17,8 @@ class DataManager(indicators_manager):
                  postprocess_klines = None,
                  preprocess_klines = None,
                  resample = True,
-                 update_db = False
+                 update_db = False,
+                 db_path = "D:/OneDrive/database/"
                  ):
         
         super().__init__(indicators,
@@ -29,6 +30,7 @@ class DataManager(indicators_manager):
         self.instruments = instruments
         self.timeframes = timeframes
         self.resample = resample
+        self.db_path= db_path
         self.update_db = update_db
         self.klines_dict = {}
         self.klines_indicators_dict = {}
@@ -70,9 +72,15 @@ class DataManager(indicators_manager):
                     # GET data
                     asset_class = self.check_asset_class(instrument)
                     if asset_class == "crypto":
-                        klines = get_klines_ccxt(instrument=f"{instrument}_{freq}", update=self.update_db, reload=False)
+                        klines = get_klines_ccxt(instrument=f"{instrument}_{freq}",
+                                                 db_path = self.db_path,
+                                                 update=self.update_db,
+                                                 reload=False)
                     else:
-                        klines = get_klines_TV(instrument=f"{instrument}_{freq}", update=self.update_db, reload=False)
+                        klines = get_klines_TV(instrument=f"{instrument}_{freq}",
+                                               db_path = self.db_path,
+                                               update=self.update_db,
+                                               reload=False)
                     
                 temp[freq] = klines
             self.klines_dict[instrument] = temp

@@ -147,6 +147,7 @@ def check_db(db_path="D:/OneDrive/database/ftx_klines.db"):
 
 
 def get_klines(instrument="ftx_BTC/USD_1h",
+               db_path = "D:/OneDrive/database/",
                update=False,
                from_date = None,
                to_date=None,
@@ -154,7 +155,7 @@ def get_klines(instrument="ftx_BTC/USD_1h",
                limit = 1500,
                max_retries=3):
     exchange,symbol,timeframe = instrument.split("_")
-    db_path = f"D:/OneDrive/database/{exchange}_klines.db"
+    db_path = f"{db_path}{exchange}_klines.db"
     db_tables = check_db(db_path)
     if (instrument in db_tables.index) and not reload:
         if not update:

@@ -128,6 +128,7 @@ def check_db(db_path="D:/OneDrive/database/TV_klines.db"):
 
 
 def get_klines(instrument="CME_MINI_NQ1!_1h",
+               db_path = "D:/OneDrive/database/",
                update=False,
                from_date = None,
                to_date=None,
@@ -137,7 +138,7 @@ def get_klines(instrument="CME_MINI_NQ1!_1h",
     *exchange,symbol,timeframe = instrument.split("_")
     exchange = "_".join(exchange)
     
-    db_path = f"D:/OneDrive/database/TV_klines.db"
+    db_path = f"{db_path}TV_klines.db"
     db_tables = check_db(db_path)
     if (instrument in db_tables.index) and not reload:
         if not update:

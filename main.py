@@ -38,6 +38,7 @@ def tides_update(send_to_telegram =True,
     
     t1 = time.time()
     config = {"general":{"db_update": False,
+                         "db_path": "D:/OneDrive/database/",
                          "output": "telegram/"},
               "strategy": {"instruments":["kucoin_BTC/USDT",   
                                           "kucoin_ETH/USDT",
@@ -68,11 +69,12 @@ def tides_update(send_to_telegram =True,
     
     
     data_manager = DataManager(instruments = config["strategy"]["instruments"],
-                                    update_db = config["general"]["db_update"],
-                                    timeframes = config["strategy"]["timeframes"],
-                                    indicators = config["strategy"]["indicators"],
-                                    resample = config["strategy"]["resample"],
-                                    )
+                               db_path = config["general"]["db_path"],
+                               update_db = config["general"]["db_update"],
+                               timeframes = config["strategy"]["timeframes"],
+                               indicators = config["strategy"]["indicators"],
+                               resample = config["strategy"]["resample"],
+                               )
     
     klines_indicators_dict =  data_manager.load_data()
     
