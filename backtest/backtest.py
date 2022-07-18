@@ -4,6 +4,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import pickle
 
+from performance.metrics import calc_equity_drawdown
 
 # pip install pandas==1.4.3
 def pickle_klines(data=None):
@@ -268,7 +269,24 @@ def backtest(df0,
     return {"df1":df1,"trades":trades}
 
 #%%
+def vectorised_backtest(df,fee=0.0001, holding_period=10):
+    fig, axs = plt.subplots(2,1)
+    
+    df1=df.copy()
+    df1["returns"] = np.log(df1['1h_close'] / df1['1h_close'].shift(1))
 
+    # long only
+    df1["position"] = df1["label"]
+
+    df1["strategy"] = df1["position"].shift(1) * df1["returns"] - abs(df1["position"].diff()).fillna(0)*fee
+    df1[["strategy","returns"]]=df1[["strategy","returns"]].cumsum().apply(np.exp)
+    df1[["strategy","returns"]].plot(ax=axs[0])
+    drawdown,maxdrawdown = calc_equity_drawdown(df1["strategy"]).values()
+    drawdown.plot(ax=axs[1])
+    
+    no_trades = abs(df1["position"].diff().dropna()).astype(int).sum()
+    print(f"Number of trades: {no_trades}, MDD: {maxdrawdown}")
+    return df1
 
 
 #%%

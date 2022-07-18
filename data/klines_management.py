@@ -3,7 +3,6 @@ import numpy as np
 import time
 import sqlite3
 from tqdm import tqdm
-import pandas_ta as ta
 
 from tvDatafeed import TvDatafeed, Interval
 from strategy.indicators_management import indicators_manager
@@ -114,7 +113,10 @@ class klines_manager(indicators_manager):
         tries = 0
         while tries < 10:
             try:
-                klines = self.tv.get_hist(ticker,exchange,interval=interval,n_bars=number_of_bars)
+                klines = self.tv.get_hist(symbol=ticker,
+                                          exchange=exchange,
+                                          interval=interval,
+                                          n_bars=number_of_bars)
             except Exception as e:
                 print(e)
                 print("RETRYING ... {tries}")
@@ -146,7 +148,8 @@ class klines_manager(indicators_manager):
                                             "NASDAQ_NFLX",
                                             "NYSE_SE",
                                             "CME_MINI_ES1!",
-                                            "CME_MINI_NQ1!"
+                                            "CME_MINI_NQ1!",
+                                            "ftx_BTC/USDT"
                                             ]):
         print("Loading klines")
         for instrument in tqdm(instruments):
@@ -155,7 +158,7 @@ class klines_manager(indicators_manager):
                 if self.resample and (freq in self.timeframes[1:]): 
                     df = None
                 else:
-                    table_name = f"TV_{instrument}_{freq}"      
+                    table_name = f"{instrument}_{freq}"      
                     query = f"""SELECT * from '{table_name}' order by closeTime"""
                     df0 = pd.read_sql_query(query, self.conn)
                     df=df0.copy()
@@ -188,10 +191,10 @@ class klines_manager(indicators_manager):
                 # print(f"Generating Tide {instrument}_{freq} ...")
                 # Tide = tide(sensitivity=50,thresholds=10,lookback_windows=[5,20,67])
                 # klines = calc_tides(klines,sensitivity=self.sensitivity, thresholds=self.thresholds, windows=self.lookback_windows)
-                klines = self._preprocess_klines(klines)
+                klines = self._preprocess_klines(klines,freq)
                 if self.indicators is not None:
-                    klines = self._calc_indicators(klines)
-                klines = self._postprocess_klines(klines)
+                    klines = self._calc_indicators(klines,freq)
+                klines = self._postprocess_klines(klines,freq)
                 
                 klines=klines.add_prefix(f"{freq}_")
                 klines.dropna(inplace=True)

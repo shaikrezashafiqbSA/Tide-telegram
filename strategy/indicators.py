@@ -2,7 +2,123 @@ import numpy as np
 import pandas as pd
 import numba as nb
 
+@nb.njit(cache=True)
+def nb_ewma(close_px: np.array, window: int, alpha=None) -> np.array:
+    """
+    default ewma uses a=2/(n+1)
 
+    RSI function uses Wilder's MA which req a=1/n   <<--- see nb_rsi function
+
+    INPUTS:
+            close_px: np.array(float)
+            window: int
+            alpha: float / None
+
+        RETURNS:
+            ema: np.array(float)
+    """
+    n = len(close_px)
+    ewma = np.full(len(close_px), np.nan)
+
+    if not alpha:
+        alpha = 2.0 / float(window + 1)  # default alpha is 2/(n+1)
+    w = 1.0
+
+    ewma_old = close_px[0]
+    if np.isnan(ewma_old):  # to account for possibility that arr_in[0] may be np.nan
+        ewma_old = 0.0
+
+    ewma[0] = ewma_old
+    for i in range(1, n):
+        w += (1.0 - alpha) ** i
+        ewma_old = ewma_old * (1 - alpha) + close_px[i]
+        ewma[i] = ewma_old / w
+    return ewma
+
+@nb.njit(cache=True)
+def nb_rsi(close_px: np.array, window: int) -> np.array:
+    """ This method has dependency on another Numba function: nb_ewma
+
+    INPUTS:
+            close_px: np.array(float)
+            window: int
+            alpha: float / None
+
+    RETURNS:
+            rsi: np.array(float)
+
+    """
+    n = len(close_px)
+    close_diff = np.full(n, np.nan)
+    close_diff[1:] = close_px[1:] - close_px[:-1]
+
+    up = np.maximum(close_diff, 0.0)
+    down = -1 * np.minimum(close_diff, 0.0)
+
+    ma_up = nb_ewma(up, window=window, alpha=1/window)
+    ma_down = nb_ewma(down, window=window, alpha=1/window)
+    ma_down[ma_down == 0.0] = np.nan  # this step to prevent ZeroDivision error when eval ma_up / ma_down
+
+    rsi = ma_up / ma_down
+    rsi = 100.0 - (100.0 / (1.0 + rsi))
+
+    return rsi
+
+@nb.njit(cache=True)
+def nb_mfi(high: np.array, low: np.array, close: np.array, volume: np.array, window: int) -> np.array:
+    """
+    nb_mfi is ~2x speed of pta.mfi. Not that much speed-up. Same values output as pta.mfi
+
+     INPUTS:
+        high: np.array(float)
+        low: np.array(float)
+        close: np.array(float)
+        volume: np.array(float)
+        window: int
+
+    RETURNS:
+            mfi: np.array(float)
+    """
+    n = len(close)
+    typicalPrice = (high+low+close) / 3
+    raw_money_flow = volume * typicalPrice
+
+    # create an index of Bool type
+    pos_mf_idx = np.full(n, False)
+    pos_mf_idx[1:] = np.diff(typicalPrice) > 0
+
+    # assign values of raw_money_flow to pos_mf where pos_mf_idx == True...Likewise for neg_mf
+    pos_mf = np.full(n, np.nan)
+    neg_mf = np.full(n, np.nan)
+    pos_mf[pos_mf_idx] = raw_money_flow[pos_mf_idx]
+    neg_mf[~pos_mf_idx] = raw_money_flow[~pos_mf_idx]
+
+    psum = np.full(n, np.nan)
+    nsum = np.full(n, np.nan)
+
+    for i in range(window, n):
+        psum[i] = np.nansum(pos_mf[i-window+1:i+1])
+        nsum[i] = np.nansum(neg_mf[i-window+1:i+1])
+
+    mfi = 100 * psum / (psum + nsum)
+
+    return mfi
+
+def calc_mfi(df, window, length=14):
+    high = df["high"].to_numpy()
+    low = df["low"].to_numpy()
+    close = df["close"].to_numpy()
+    volume = df["volume"].to_numpy()
+    
+    mfi = nb_mfi(high,low, close, volume, window)
+    
+    df[f"MFI_{length}"]= mfi
+    
+    return df
+
+
+# ============================== TIDES ========================================
+    
 @nb.njit(cache=True)
 def rolling_sum(heights, w=4):
     ret = np.cumsum(heights)
@@ -344,104 +460,6 @@ def calc_slopes(df0,
     df[f'slope_l{suffix}'] = df[f'slope_avg{suffix}'].rolling(lookback).quantile(lower_quantile)
     return df
     
-@nb.njit(cache=True)
-def continuous_resampling(closetime, open_, high, low, close, vol, x):
-    x=x-1
-    n = len(close)
-    r_closetime = np.full(n,np.nan)
-    r_open = np.full(n, np.nan)
-    r_high = np.full(n, np.nan)
-    r_low = np.full(n, np.nan)
-    r_close = np.full(n, np.nan)
-    r_vol = np.full(n, np.nan)
-
-    for i in range(x,n):
-        r_closetime[i] = closetime[i]
-        r_open[i]=open_[i-x]
-        r_high[i]=np.max(high[i-x:i])
-        r_low[i] = np.min(low[i-x:i])
-        r_close[i] = close[i]
-        r_vol[i] = np.sum(vol[i-x:i])
-    
-    return r_closetime,r_open,r_high,r_low,r_close,r_vol
-
-def calc_continuous_resample(df,window):
-    closeTime = df["closeTime"].to_numpy()
-    open_ = df["open"].to_numpy()
-    high = df["high"].to_numpy()
-    low = df["low"].to_numpy()
-    close = df["close"].to_numpy()
-    vol = df["volume"].to_numpy()
-    
-    r_closetime,r_open,r_high,r_low,r_close,r_vol = continuous_resampling(closeTime,open_, high, low, close, vol, window)
-    
-    
-    test= pd.DataFrame({"open":r_open,
-                        "high":r_high,
-                        "low":r_low,
-                        "close":r_close,
-                        "volume":r_vol,
-                        "closeTime": r_closetime})
-    # test['date_time'] = pd.to_datetime(test['closeTime'], unit='s').round("1T")
-    test.index = df.index
-
-    return test
-
-import math 
-
-@nb.njit(cache=True)
-def get_dollar_bars(time_bars, dollar_threshold): #function credit to Max Bodoia
-    # initialize an empty list of dollar bars
-    dollar_bars = list()
-
-    # initialize the running dollar volume at zero
-    running_volume = 0
-
-    # initialize the running high and low with placeholder values
-    running_high, running_low = 0, math.inf
-
-    # for each time bar...
-    for i in range(len(time_bars)):
-        # get the timestamp, open, high, low, close, and volume of the next bar
-        next_close, next_high, next_low, next_open, next_timestamp, next_volume = [time_bars[i][k] for k in ['close', 'high', 'low', 'open', 'closeTime', 'volume']]
-        # get the midpoint price of the next bar (the average of the open and the close)
-        midpoint_price = ((next_open) + (next_close))/2
-
-        # get the approximate dollar volume of the bar using the volume and the midpoint price
-        dollar_volume = next_volume * midpoint_price
-
-        # update the running high and low
-        running_high, running_low = max(running_high, next_high), min(running_low, next_low)
-
-        # if the next bar's dollar volume would take us over the threshold...
-        if dollar_volume + running_volume >= dollar_threshold:
-
-            # set the timestamp for the dollar bar as the timestamp at which the bar closed (i.e. one minute after the timestamp of the last minutely bar included in the dollar bar)
-            bar_timestamp = next_timestamp + 60*60
-            
-            # add a new dollar bar to the list of dollar bars with the timestamp, running high/low, and next close
-            dollar_bars += [{'timestamp': bar_timestamp, 'open': next_open, 'high': running_high, 'low': running_low, 'close': next_close}]
-
-            # reset the running volume to zero
-            running_volume = 0
-
-            # reset the running high and low to placeholder values
-            running_high, running_low = 0, math.inf
-
-        # otherwise, increment the running volume
-        else:
-            running_volume += dollar_volume
-
-    # return the list of dollar bars
-    return dollar_bars
-
-def calc_dollar_bars(df, dollar_threshold):
-    time_bars = df.to_dict('records') 
-    dollar_bars = get_dollar_bars(time_bars,dollar_threshold)
-    dollar_bars = pd.DataFrame(dollar_bars)
-    dollar_bars['date_time'] = pd.to_datetime(dollar_bars['timestamp'], unit='s').round("1T")
-    dollar_bars.set_index(keys=['date_time'], inplace=True, drop=False)
-    return dollar_bars
 
 def calc_tide_metrics(klines_indicators_dict):
     #%%

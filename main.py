@@ -7,7 +7,7 @@ import telegram
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.schedulers.blocking import BlockingScheduler
 
-from data.klines_management import klines_manager
+from data.data_management import DataManager
 
 """
 TODO:
@@ -17,7 +17,8 @@ TODO:
     
 def tides_update(send_to_telegram =True,
                  update_db = True,
-                 resample = True):
+                 resample = True,
+                 debug=False):
     # send_to_telegram = True # True
     # update_db = True # True
     # resample = True
@@ -35,56 +36,46 @@ def tides_update(send_to_telegram =True,
         bot = telegram.Bot(telegram_auth_token)
         bot.send_message(text="job starting ...", chat_id=chat_id)
     
-    config = {"general":{"klines_db_location": "D:/OneDrive/database/TV_klines.db",#"/Users/Shaik Reza Shafiq/Desktop/Tide/database/TV_klines.db",
+    t1 = time.time()
+    config = {"general":{"db_update": False,
                          "output": "telegram/"},
-              "strategy": {"timeframes": ["1h","4h", "24h", "48h"],
-                          "indicators": {'tide': {'window': [5,20,67], "sensitivity": [10], "thresholds": [5]},
-                                         'atr': {'length': [14]},
-                                         'mfi': {'length': [14], 'close': ['close']},
-                                         'ema': {'length': [39], 'close': ['close']}
-                                         },
+              "strategy": {"instruments":["kucoin_BTC/USDT",   
+                                          "kucoin_ETH/USDT",
+                                          "CME_BTC1!",
+                                          "SGX_CN1!",
+                                          "SGX_TWN1!",
+                                          "SGX_SGP1!",
+                                          "HKEX_HSI1!",
+                                          "HKEX_TCH1!",
+                                          "HKEX_ALB1!",
+                                          "COMEX_MINI_MGC1!",
+                                          "NASDAQ_TSLA",
+                                          "NASDAQ_NFLX",
+                                          "NYSE_SE",
+                                          "CME_MINI_ES1!",
+                                          "CME_MINI_NQ1!"
+                                          ],
+                           "timeframes": ["1h","4h", "24h", "48h"],
+                           "indicators": {'tide': {'window': [5,20,67], "sensitivity": [10], "thresholds": [5]},
+                                          'mfi': {'length': [14], 'close': ['close']},
+                                          'ema': {'length': [81], 'close': ['close']}
+                                          },
+                           "resample": True
                           },
               
               }
-    
-    t1 = time.time()
-    timeframes = config["strategy"]["timeframes"]
-    indicators = config["strategy"]["indicators"]
-    klines_db_location = config["general"]["klines_db_location"]
+
     
     
-    Klines_Manager = klines_manager(timeframes,
-                                    indicators,
-                                    klines_db_location,
-                                    resample = resample,
-                                    update_db = update_db)
+    data_manager = DataManager(instruments = config["strategy"]["instruments"],
+                                    update_db = config["general"]["db_update"],
+                                    timeframes = config["strategy"]["timeframes"],
+                                    indicators = config["strategy"]["indicators"],
+                                    resample = config["strategy"]["resample"],
+                                    )
     
+    klines_indicators_dict =  data_manager.load_data()
     
-    #%%
-    instruments =["CME_BTC1!",
-                  "SGX_CN1!",
-                  "SGX_TWN1!",
-                  "SGX_SGP1!",
-                  "HKEX_HSI1!",
-                  "HKEX_TCH1!",
-                  "HKEX_ALB1!",
-                  "COMEX_MINI_MGC1!",
-                  "NASDAQ_TSLA",
-                  "NASDAQ_NFLX",
-                  "NYSE_SE",
-                  "CME_MINI_ES1!",
-                  "CME_MINI_NQ1!"
-                  ]
-    
-    # def update_tide:
-    if update_db:
-        Klines_Manager.load_equities(instruments=instruments)
-    
-    Klines_Manager.load_equities_from_db(instruments)
-    
-    Klines_Manager.calc_indicators()
-    # return
-    klines_indicators_dict = Klines_Manager.klines_indicators_dict
     #%%
     
     from performance.plots import get_plotly#,calc_performance
@@ -125,7 +116,7 @@ def tides_update(send_to_telegram =True,
     return klines_indicators_dict
 #%%
 if __name__ == "__main__":
-    test= False
+    test= True
     if not test:
         scheduled_minute = '30'
         # scheduler = BackgroundScheduler(daemon=False,timezone="Singapore")
@@ -137,7 +128,7 @@ if __name__ == "__main__":
         print(f"SCHEDULER STARTED: running every {scheduled_minute}mins")
     else:
         klines_indicators_dict = tides_update(send_to_telegram=False,
-                                              update_db = False)
+                                              update_db = False,
+                                              debug = True)
         
-        df = klines_indicators_dict["SGX_TWN1!"].copy()
     

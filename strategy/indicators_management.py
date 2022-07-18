@@ -4,7 +4,7 @@ import pandas_ta
 import pandas_ta as ta
 import warnings
 
-from strategy.indicators import calc_tides,calc_slopes, calc_continuous_resample
+from strategy.indicators import calc_tides,calc_slopes, calc_mfi
 
 class indicators_manager:
     """
@@ -27,7 +27,7 @@ class indicators_manager:
         # Build list according to what ta.Strategy accepts
         indicators_params = []
         for indicator,params in indicators.items():
-            if indicator in ["tide","slopes"]:
+            if indicator in ["tide","slopes", "mfi"]:
                 continue
             kind = indicator
             if len(params) == 1:
@@ -53,9 +53,25 @@ class indicators_manager:
                     indicators_params.append(ind_dict_i)
        
         self.indicators_factory = ta.Strategy(name="general_bot",ta=indicators_params)
+        self.base_timeframe = None
+    def freq_map(self,freq="4h"):
+        #  returns int multiplier for higher timeframes
+        # eg: if base timeframe is 1h, then if freq given is 4h, return 4
+        freq_number = int(freq[:-1])
+        timeframe = freq[-1]
+        
+        assert timeframe == "h"
+        
+        return int(freq_number/int(self.base_timeframe[:-1]))
         
         
-    def _calc_indicators(self,klines: pd.DataFrame,workers=0):
+        
+        
+    def _calc_indicators(self,klines: pd.DataFrame,freq="1h",workers=0):
+        # if called first then take that freq as base timeframe
+        if self.base_timeframe is None:
+            self.base_timeframe = freq
+        
         if "tide" in self.indicators.keys():
             sensitivity = self.indicators["tide"]["sensitivity"]
             thresholds = self.indicators["tide"]["thresholds"]
@@ -68,7 +84,8 @@ class indicators_manager:
                 # warnings.warn(f"More than 1 threshold parameter not supported yet \n--> selecting 1st of {thresholds}")     
                 thresholds = int(thresholds[0])
             if type(windows) is not np.ndarray:
-                windows = np.array(windows)
+                windows = np.array(windows)*self.freq_map(freq)
+                # print(f"{windows}, type: {type(windows[0])}")
                 
             klines = calc_tides(klines,sensitivity=sensitivity, thresholds=thresholds, windows=windows)
             
@@ -92,17 +109,23 @@ class indicators_manager:
                                                  upper_quantile=uq,
                                                  logRet_norm_window=lw, 
                                                  suffix=suffix)
+                            
+        if "mfi" in self.indicators.keys():
+            windows = self.indicators["mfi"]["length"]
+            for window in windows:
+               window *= self.freq_map(freq)
+               klines = calc_mfi(klines, window)
         
         klines.ta.cores = workers
         klines.ta.strategy(self.indicators_factory,verbose=False) 
         
         return klines
         
-    def _preprocess_klines(self,klines: pd.DataFrame):
+    def _preprocess_klines(self,klines: pd.DataFrame, freq="1h"):
         return klines
    
     
-    def _postprocess_klines(self,klines: pd.DataFrame):
+    def _postprocess_klines(self,klines: pd.DataFrame, freq="1h"):
         return klines
     # def onPayload(self,payload):
     #     # Calculate TA stuff here
