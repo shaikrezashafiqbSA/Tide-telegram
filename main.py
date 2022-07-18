@@ -8,129 +8,163 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.schedulers.blocking import BlockingScheduler
 
 from data.data_management import DataManager
+from performance.plots import get_plotly
+from strategy.indicators import calc_tide_metrics
+import dataframe_image as dfi 
 
 """
 TODO:
     - mx vs price warnings
 
 """
+class TidesUpdate:  
+    def __init__(self, 
+                 instruments, 
+                 db_update,
+                 send_to_telegram = True):
+        self.instruments = instruments
+        self.db_update = db_update
+        self.asset_class = instruments["asset_class"]
+        self.send_to_telegram = send_to_telegram
+        
+    def load_data(self):  
+        config = {"general":{"db_update": self.db_update,
+                             "db_path": "D:/OneDrive/database/",
+                             "output": "telegram/"},
+                  "strategy": {"timeframes": ["1h","4h", "24h", "48h"],
+                               "indicators": {'tide': {'window': [5,20,67],
+                                                       "sensitivity": [10],
+                                                       "thresholds": [5]},
+                                              'mfi': {'length': [14], 'close': ['close']},
+                                              'ema': {'length': [81], 'close': ['close']}
+                                            },
+                              "resample": True
+                            },
+                }
+        self.config = config
+        
+        data_manager = DataManager(instruments = self.instruments["instruments"],
+                                   db_path = self.config["general"]["db_path"],
+                                   update_db = self.config["general"]["db_update"],
+                                   timeframes = self.config["strategy"]["timeframes"],
+                                   indicators = self.config["strategy"]["indicators"],
+                                   resample = self.config["strategy"]["resample"],
+                                   )
+        
+        klines_indicators_dict =  data_manager.load_data()
+        self.klines_indicators_dict = klines_indicators_dict
     
-def tides_update(send_to_telegram =True,
-                 update_db = True,
-                 resample = True,
-                 debug=False):
-    # send_to_telegram = True # True
-    # update_db = True # True
-    # resample = True
-    if send_to_telegram:
-        telegram_auth_token = "5403909034:AAF5TVshAENvwEvhNRQ_H7Jf519nPGrgnxA"
-        chat_id = -1001604110225
-        
-        
-        # SGT = pytz.timezone('Asia/Singapore')
-        # raw_SGT= dt.now(SGT)
-        # curr_date = raw_SGT.strftime("%d-%m-%Y")
-        # curr_time = raw_SGT.strftime("%H:%M:%S")
-        
-        
-        bot = telegram.Bot(telegram_auth_token)
-        bot.send_message(text="job starting ...", chat_id=chat_id)
-    
-    t1 = time.time()
-    config = {"general":{"db_update": False,
-                         "db_path": "D:/OneDrive/database/",
-                         "output": "telegram/"},
-              "strategy": {"instruments":["kucoin_BTC/USDT",   
-                                          "kucoin_ETH/USDT",
-                                          "CME_BTC1!",
-                                          "SGX_CN1!",
-                                          "SGX_TWN1!",
-                                          "SGX_SGP1!",
-                                          "HKEX_HSI1!",
-                                          "HKEX_TCH1!",
-                                          "HKEX_ALB1!",
-                                          "COMEX_MINI_MGC1!",
-                                          "NASDAQ_TSLA",
-                                          "NASDAQ_NFLX",
-                                          "NYSE_SE",
-                                          "CME_MINI_ES1!",
-                                          "CME_MINI_NQ1!"
-                                          ],
-                           "timeframes": ["1h","4h", "24h", "48h"],
-                           "indicators": {'tide': {'window': [5,20,67], "sensitivity": [10], "thresholds": [5]},
-                                          'mfi': {'length': [14], 'close': ['close']},
-                                          'ema': {'length': [81], 'close': ['close']}
-                                          },
-                           "resample": True
-                          },
-              
-              }
+    #%%
+    def update(self):
+        if self.send_to_telegram:
+            telegram_auth_token = "5403909034:AAF5TVshAENvwEvhNRQ_H7Jf519nPGrgnxA"
+            chat_id = -1001604110225
 
-    
-    
-    data_manager = DataManager(instruments = config["strategy"]["instruments"],
-                               db_path = config["general"]["db_path"],
-                               update_db = config["general"]["db_update"],
-                               timeframes = config["strategy"]["timeframes"],
-                               indicators = config["strategy"]["indicators"],
-                               resample = config["strategy"]["resample"],
-                               )
-    
-    klines_indicators_dict =  data_manager.load_data()
-    
-    #%%
-    
-    from performance.plots import get_plotly#,calc_performance
-    date_now = dt.now().strftime("%Y-%m-%d")
-    date_1_month_ago =(dt.now() - timedelta(days=60)).strftime("%Y-%m-%d")
-    get_plotly(klines_indicators_dict,
-               window=[date_1_month_ago, date_now],
-               cols_to_plot=["MFI_14"])
-    t2 = np.round(time.time()-t1,2)
-    #%%
-    
-    # Send html file
-    if send_to_telegram:
-        file = open("tides.html",'rb')
-        bot.send_document(chat_id, file)
-        print("Sent tides.html to telegram")
-    #%%   
-    from strategy.indicators import calc_tide_metrics
-    import dataframe_image as dfi 
-    
-    pd.set_option('display.max_columns', None)
-    
-    metrics_df = calc_tide_metrics(klines_indicators_dict)
-    dfi.export(metrics_df, f"telegram/summary.png")
-    if send_to_telegram:
-        bot.send_photo(chat_id, photo=open(f'telegram/summary.png', 'rb'),caption="Market Snapshot")
-        print(f"Sent summary snapshot to telegram")
-    
-    #%%
-    t2 = np.round(time.time()-t1,2)
-    if send_to_telegram:
-        print("FINISHED")
-        msg = f"job completed in {t2}s"
-        bot.send_message(text=msg, chat_id=chat_id)
+            bot = telegram.Bot(telegram_auth_token)
+            bot.send_message(text=f"{self.asset_class} job starting ...", chat_id=chat_id)
+            
+        # =======================================
+        #  Get klines    
+        # =======================================
+        t1 = time.time()
+        self.load_data()
+               
+        # =======================================
+        #  Plot
+        # =======================================        
+        date_now = dt.now().strftime("%Y-%m-%d")
+        date_1_month_ago =(dt.now() - timedelta(days=60)).strftime("%Y-%m-%d")
         
-        print(msg)
+        get_plotly(filename = f"tides_{self.asset_class}",
+                   df_dict = self.klines_indicators_dict,
+                   window=[date_1_month_ago, date_now],
+                   cols_to_plot=["MFI_14"])
+        t2 = np.round(time.time()-t1,2)
+
+        # =======================================
+        #  Send plotly html to telegram
+        # =======================================
+        if self.send_to_telegram:
+            file = open(f"tides_{self.asset_class}.html",'rb')
+            bot.send_document(chat_id, file)
+            print(f"Sent tides_{self.asset_class} to telegram")
+
+        pd.set_option('display.max_columns', None)
         
-    return klines_indicators_dict
+        metrics_df = calc_tide_metrics(self.klines_indicators_dict)
+        dfi.export(metrics_df, f"telegram/summary_{self.asset_class}.png")
+        if self.send_to_telegram:
+            bot.send_photo(chat_id, photo=open(f'telegram/summary_{self.asset_class}.png', 'rb'),caption=f"{self.asset_class} snapshot")
+            print(f"Sent summary_{self.asset_class}.png to telegram")
+        
+
+        t2 = np.round(time.time()-t1,2)
+        if self.send_to_telegram:
+            print("FINISHED")
+            msg = f"{self.asset_class} job completed in {t2}s"
+            bot.send_message(text=msg, chat_id=chat_id)
+            
+            print(msg)
+            
 #%%
 if __name__ == "__main__":
     test= True
     if not test:
-        scheduled_minute = '30'
+        instruments_equities = {"asset_class":"equities",
+                                "instruments":["SGX_CN1!",    
+                                               "SGX_TWN1!",
+                                               "SGX_SGP1!",
+                                               "HKEX_HSI1!",
+                                               "HKEX_TCH1!",
+                                               "HKEX_ALB1!",
+                                               "COMEX_MINI_MGC1!",
+                                               "NASDAQ_TSLA",
+                                               "NASDAQ_NFLX",
+                                               "NYSE_SE",
+                                               "CME_MINI_ES1!",
+                                               "CME_MINI_NQ1!"
+                                               ]
+                                }
+        
+        instruments_crypto = {"asset_class":"crypto",
+                              "instruments":["kucoin_BTC/USDT",   
+                                             "kucoin_ETH/USDT",
+                                             "ftx_BTC/USD",
+                                             "ftx_ETH/USD",
+                                             ]
+                              }
+        
+        tide_equities = TidesUpdate(instruments=instruments_equities,
+                                    send_to_telegram = True)
+        
+        tide_crypto = TidesUpdate(instruments=instruments_equities,
+                                  send_to_telegram = True)
+        
         # scheduler = BackgroundScheduler(daemon=False,timezone="Singapore")
         scheduler = BlockingScheduler(timezone="Singapore")
-        scheduler.add_job(func=tides_update, 
+        scheduler.add_job(func=tide_equities.update, 
                           trigger='cron',
-                          minute=scheduled_minute)
+                          minute="15")
+        scheduler.add_job(func=tide_crypto.update, 
+                          trigger='cron',
+                          minute="0")
+        
         scheduler.start()
-        print(f"SCHEDULER STARTED: running every {scheduled_minute}mins")
     else:
-        klines_indicators_dict = tides_update(send_to_telegram=False,
-                                              update_db = False,
-                                              debug = True)
+        
+        instruments_crypto = {"asset_class":"crypto",
+                              "instruments":["kucoin_BTC/USDT",   
+                                             "kucoin_ETH/USDT",
+                                             "ftx_BTC/USD",
+                                             "ftx_ETH/USD",
+                                             ]
+                              }
+        
+        tide_crypto = TidesUpdate(instruments=instruments_crypto,
+                                  db_update = True,
+                                  send_to_telegram = False)
+        tide_crypto.update()
+        
+        
         
     

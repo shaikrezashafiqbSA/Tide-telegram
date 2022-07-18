@@ -12,7 +12,8 @@ def sort_human(l):
     l.sort(key=alphanum)
     return l
 
-def get_plotly(df_dict,
+def get_plotly(filename,
+               df_dict,
                window,
                cols_to_plot=None,
                row_heights:list=[1,1,1,1,1,5]):
@@ -157,4 +158,4 @@ def get_plotly(df_dict,
     # fig.show()
     now = dt.now()
     publish_date = str(dt(now.year,now.month,now.day))[0:10]
-    fig.write_html("tides.html")
+    fig.write_html(filename+".html")
