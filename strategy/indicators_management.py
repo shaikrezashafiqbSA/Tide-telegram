@@ -4,7 +4,7 @@ import pandas_ta
 import pandas_ta as ta
 import warnings
 
-from strategy.indicators import calc_tides,calc_slopes, calc_mfi
+from strategy.indicators import calc_tides,calc_slopes, calc_mfi, calc_emas, calc_rsis
 
 class indicators_manager:
     """
@@ -27,7 +27,7 @@ class indicators_manager:
         # Build list according to what ta.Strategy accepts
         indicators_params = []
         for indicator,params in indicators.items():
-            if indicator in ["tide","slopes", "mfi"]:
+            if indicator in ["tide_fast","tide_slow","slopes", "mfi", "ema", "rsi"]:
                 continue
             kind = indicator
             if len(params) == 1:
@@ -54,15 +54,19 @@ class indicators_manager:
        
         self.indicators_factory = ta.Strategy(name="general_bot",ta=indicators_params)
         self.base_timeframe = None
-    def freq_map(self,freq="4h"):
+        # self.base_timeframe_preproces = None
+        
+    def freq_map(self,freq="4h",preprocess=False):
         #  returns int multiplier for higher timeframes
         # eg: if base timeframe is 1h, then if freq given is 4h, return 4
         freq_number = int(freq[:-1])
         timeframe = freq[-1]
         
         assert timeframe == "h"
-        
+        # if preprocess:
         return int(freq_number/int(self.base_timeframe[:-1]))
+        # else:
+        #     return int(freq_number/int(self.base_timeframe_preproces[:-1]))
         
         
         
@@ -72,10 +76,10 @@ class indicators_manager:
         if self.base_timeframe is None:
             self.base_timeframe = freq
         
-        if "tide" in self.indicators.keys():
-            sensitivity = self.indicators["tide"]["sensitivity"]
-            thresholds = self.indicators["tide"]["thresholds"]
-            windows = self.indicators["tide"]["window"]
+        if "tide_slow" in self.indicators.keys():
+            sensitivity = self.indicators["tide_slow"]["sensitivity"]
+            thresholds = self.indicators["tide_slow"]["thresholds"]
+            windows = self.indicators["tide_slow"]["window"]
             # print(f"\n\n sensitivity: {sensitivity}, type: {type(sensitivity)}")
             if len(sensitivity) >1 or type(sensitivity) is not int:
                 # warnings.warn(f"More than 1 sensitivity parameter not supported yet \n--> selecting 1st of {sensitivity}")
@@ -86,8 +90,28 @@ class indicators_manager:
             if type(windows) is not np.ndarray:
                 windows = np.array(windows)*self.freq_map(freq)
                 # print(f"{windows}, type: {type(windows[0])}")
-                
-            klines = calc_tides(klines,sensitivity=sensitivity, thresholds=thresholds, windows=windows)
+            price = self.indicators["tide_slow"]["price"]  
+
+            klines = calc_tides(klines,sensitivity=sensitivity, thresholds=thresholds, windows=windows, price=price, suffix="slow")
+            
+            
+        if "tide_fast" in self.indicators.keys():
+            sensitivity = self.indicators["tide_fast"]["sensitivity"]
+            thresholds = self.indicators["tide_fast"]["thresholds"]
+            windows = self.indicators["tide_fast"]["window"]
+            # print(f"\n\n sensitivity: {sensitivity}, type: {type(sensitivity)}")
+            if len(sensitivity) >1 or type(sensitivity) is not int:
+                # warnings.warn(f"More than 1 sensitivity parameter not supported yet \n--> selecting 1st of {sensitivity}")
+                sensitivity = int(sensitivity[0])
+            if len(thresholds) >1 or type(thresholds) is not int:
+                # warnings.warn(f"More than 1 threshold parameter not supported yet \n--> selecting 1st of {thresholds}")     
+                thresholds = int(thresholds[0])
+            if type(windows) is not np.ndarray:
+                windows = np.array(windows)*self.freq_map(freq)
+                # print(f"{windows}, type: {type(windows[0])}")
+            price = self.indicators["tide_slow"]["price"]  
+
+            klines = calc_tides(klines,sensitivity=sensitivity, thresholds=thresholds, windows=windows,price=price, suffix="fast")
             
         if "slopes" in self.indicators.keys():
             slope_lengths = self.indicators["slopes"]["slope_lengths"]
@@ -110,11 +134,34 @@ class indicators_manager:
                                                  logRet_norm_window=lw, 
                                                  suffix=suffix)
                             
-        if "mfi" in self.indicators.keys():
-            windows = self.indicators["mfi"]["length"]
-            for window in windows:
-               window *= self.freq_map(freq)
-               klines = calc_mfi(klines, window)
+        if "mfi" in self.indicators.keys(): #and not self.indicators["mfi"]["preprocess"]:
+            lengths = self.indicators["mfi"]["length"]
+            for length in lengths:
+               window = length * self.freq_map(freq)
+               klines = calc_mfi(klines, window,label=length)
+               
+        if "rsi" in self.indicators.keys():
+            lengths = self.indicators["rsi"]["length"]
+            prices = self.indicators["rsi"]["price"]
+            for length in lengths:
+                for price in prices:
+                   window = length * self.freq_map(freq)
+                   klines = calc_rsis(klines, price, window,label=f"{length}_{price[0]}")
+               
+        if "ema" in self.indicators.keys():
+            lengths = self.indicators["ema"]["length"]
+            for length in lengths:
+               window = length * self.freq_map(freq)
+               for price in self.indicators["ema"]["price"]:
+                   klines = calc_emas(klines,price, window,label=length)
+                   
+        if "psar" in self.indicators.keys():
+            psar = klines.ta.psar()
+            l=psar.filter(regex="PSARl").columns[0]
+            s=psar.filter(regex="PSARs").columns[0]
+            psar=psar[[l,s]]
+            psar = psar.fillna(0)
+            klines["PSAR"]=psar.sum(axis=1)
         
         klines.ta.cores = workers
         klines.ta.strategy(self.indicators_factory,verbose=False) 
@@ -122,6 +169,18 @@ class indicators_manager:
         return klines
         
     def _preprocess_klines(self,klines: pd.DataFrame, freq="1h"):
+        # if self.base_timeframe_preproces is None:
+            # self.base_timeframe_preproces = freq
+        # """
+        # This allows features to be processed further (generate MFI then run tide on MFIs)
+        # """
+        # if "mfi" in self.indicators.keys() and self.indicators["mfi"]["preprocess"]:
+        #     lengths = self.indicators["mfi"]["length"]
+        #     ohlc = self.indicators["mfi"]["ohlc"]
+        #     for length in lengths:
+        #        window = length * self.freq_map(freq)
+        #        klines = calc_mfi(klines, window,label=length,ohlc=ohlc)
+        
         return klines
    
     

@@ -21,27 +21,28 @@ class TidesUpdate:
     def __init__(self, 
                  instruments, 
                  db_update,
+                 config = None,
                  send_to_telegram = True):
         self.instruments = instruments
         self.db_update = db_update
         self.asset_class = instruments["asset_class"]
         self.send_to_telegram = send_to_telegram
-        
+        if config is None:
+            self.config = {"general":{"db_update": self.db_update,
+                                      "db_path": "D:/OneDrive/database/",
+                                      "output": "telegram/"},
+                           "strategy": {"timeframes": ["1h","4h", "24h", "48h"],
+                                        "indicators": {'tide': {'window': [5,20,67],
+                                                                "sensitivity": [10],
+                                                                "thresholds": [5]},
+                                                       'mfi': {'length': [14], 'close': ['close']},
+                                                       'ema': {'length': [81], 'close': ['close']}
+                                                       },
+                                        "resample": True
+                                        },
+                           }
+
     def load_data(self):  
-        config = {"general":{"db_update": self.db_update,
-                             "db_path": "D:/OneDrive/database/",
-                             "output": "telegram/"},
-                  "strategy": {"timeframes": ["1h","4h", "24h", "48h"],
-                               "indicators": {'tide': {'window': [5,20,67],
-                                                       "sensitivity": [10],
-                                                       "thresholds": [5]},
-                                              'mfi': {'length': [14], 'close': ['close']},
-                                              'ema': {'length': [81], 'close': ['close']}
-                                            },
-                              "resample": True
-                            },
-                }
-        self.config = config
         
         data_manager = DataManager(instruments = self.instruments["instruments"],
                                    db_path = self.config["general"]["db_path"],
@@ -127,18 +128,23 @@ if __name__ == "__main__":
                                 }
         
         instruments_crypto = {"asset_class":"crypto",
-                              "instruments":["kucoin_BTC/USDT",   
-                                             "kucoin_ETH/USDT",
-                                             "ftx_BTC/USD",
-                                             "ftx_ETH/USD",
-                                             ]
+                              "instruments":["ftx_BTC/USD",
+                                            "ftx_ETH/USD",
+                                            "ftx_SOL/USD",
+                                            "ftx_FTT/USD",
+                                            "ftx_FTM/USD",
+                                            "ftx_TSM/USD",
+                                            "ftx_NVDA/USD",
+                                            "ftx_AMD/USD",
+                                            "ftx_TSLA/USD",
+                                            ]
                               }
         
         tide_equities = TidesUpdate(instruments=instruments_equities,
                                     db_update = True,
                                     send_to_telegram = True)
         
-        tide_crypto = TidesUpdate(instruments=instruments_equities,
+        tide_crypto = TidesUpdate(instruments=instruments_crypto,
                                   db_update = True,
                                   send_to_telegram = True)
         
@@ -149,21 +155,26 @@ if __name__ == "__main__":
                           minute="15")
         scheduler.add_job(func=tide_crypto.update, 
                           trigger='cron',
-                          minute="0")
+                          minute="1")
         
         scheduler.start()
     else:
         
         instruments_crypto = {"asset_class":"crypto",
-                              "instruments":["kucoin_BTC/USDT",   
-                                             "kucoin_ETH/USDT",
-                                             "ftx_BTC/USD",
-                                             "ftx_ETH/USD",
-                                             ]
+                              "instruments":["ftx_BTC/USD",
+                                            "ftx_ETH/USD",
+                                            "ftx_SOL/USD",
+                                            "ftx_FTT/USD",
+                                            "ftx_FTM/USD",
+                                            "ftx_TSM/USD",
+                                            "ftx_NVDA/USD",
+                                            "ftx_AMD/USD",
+                                            "ftx_TSLA/USD",
+                                            ]
                               }
         
         tide_crypto = TidesUpdate(instruments=instruments_crypto,
-                                  db_update = True,
+                                  db_update = False,
                                   send_to_telegram = False)
         tide_crypto.update()
         

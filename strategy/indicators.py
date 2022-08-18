@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import numba as nb
+# from strategy.resampler import calc_ohlc_from_series
 
 @nb.njit(cache=True)
 def nb_ewma(close_px: np.array, window: int, alpha=None) -> np.array:
@@ -18,7 +19,7 @@ def nb_ewma(close_px: np.array, window: int, alpha=None) -> np.array:
             ema: np.array(float)
     """
     n = len(close_px)
-    ewma = np.full(len(close_px), np.nan)
+    ewma = np.full(n, np.nan)
 
     if not alpha:
         alpha = 2.0 / float(window + 1)  # default alpha is 2/(n+1)
@@ -34,6 +35,65 @@ def nb_ewma(close_px: np.array, window: int, alpha=None) -> np.array:
         ewma_old = ewma_old * (1 - alpha) + close_px[i]
         ewma[i] = ewma_old / w
     return ewma
+
+@nb.njit(cache=True)
+def nb_wma(close_px: np.array, window: int) -> np.array:
+    """ Weighted moving average
+
+        INPUTS:
+            close_px: np.array(float)
+            window: int
+
+        RETURNS:
+            wma: np.array(float)
+    """
+    n = len(close_px)
+    wma = np.full(n, np.nan)
+    weights = np.arange(window ) +1   # linear increasing weights [1,2,3,...,13,14]
+    weights_sum = np.sum(weights)
+
+    for idx in range(window, n):
+        # explicitly declare the window. No other reference to closePrices_np
+        price_window = close_px[idx - window + 1:idx + 1]  # up to but not including
+
+        wma[idx] = np.sum(weights * price_window) / weights_sum
+
+    return wma
+
+@nb.njit(cache=True)
+def nb_hma(close_px: np.array, window: int) -> np.array:
+    """ computes the Hull Moving Average
+
+        Uses the nb_wma function (compiled in Numba) to compute the Weighted Moving Avg .
+        Roughly 100x speed-up vs pandas_ta
+
+        INPUTS:
+            close_px: np.array(float)
+            window: int
+
+        RETURNS:
+            hma: np.array(float)
+    """
+    wma_half = nb_wma(close_px, int(window / 2))
+    wma_full = nb_wma(close_px, int(window))
+
+    # vector operation
+    hma_input = ( 2 *wma_half) - wma_full
+    hma = nb_wma(hma_input, window=int(np.sqrt(window)))
+
+    return hma
+
+def calc_emas(df,price="close", window=89, label=14):    
+    # Ensure no nans
+    df.dropna(inplace=True)
+    price = df[price].to_numpy()
+
+
+    ema = nb_ewma(price, window=window)
+    
+    df[f"EMA_{label}"]= ema
+    
+    return df
 
 @nb.njit(cache=True)
 def nb_rsi(close_px: np.array, window: int) -> np.array:
@@ -63,6 +123,18 @@ def nb_rsi(close_px: np.array, window: int) -> np.array:
     rsi = 100.0 - (100.0 / (1.0 + rsi))
 
     return rsi
+
+def calc_rsis(df,price="close", window=13, label=13):    
+    # Ensure no nans
+    df.dropna(inplace=True)
+    price = df[price].to_numpy()
+
+
+    rsi = nb_rsi(price, window=window)
+    
+    df[f"RSI_{label}"]= rsi
+    
+    return df
 
 @nb.njit(cache=True)
 def nb_mfi(high: np.array, low: np.array, close: np.array, volume: np.array, window: int) -> np.array:
@@ -104,16 +176,18 @@ def nb_mfi(high: np.array, low: np.array, close: np.array, volume: np.array, win
 
     return mfi
 
-def calc_mfi(df, window, length=14):
+def calc_mfi(df, window, label=14):#, ohlc=None):
     high = df["high"].to_numpy()
     low = df["low"].to_numpy()
     close = df["close"].to_numpy()
     volume = df["volume"].to_numpy()
     
     mfi = nb_mfi(high,low, close, volume, window)
+    df[f"MFI_{label}"]= mfi
     
-    df[f"MFI_{length}"]= mfi
-    
+    # if ohlc is not None:
+    #     df[[f"MFI_{label}_open",f"MFI_{label}_high",f"MFI_{label}_low",f"MFI_{label}_close"]] = calc_ohlc_from_series(df,col_name=f"MFI_{label}", window=ohlc)
+
     return df
 
 
@@ -143,7 +217,6 @@ def calc_exponential_height(heights, w):  ## CHECK!!
 def calc_tide(open_i: np.array,
               high_i: np.array,
               low_i: np.array,
-              close_i: np.array,
               previous_tide: float,
               previous_ebb: float,
               previous_flow: float,
@@ -165,7 +238,8 @@ def calc_tide(open_i: np.array,
 
     if np.isnan(previous_tide):
         previous_tide = 1
-        previous_ebb = 1
+    if np.isnan(previous_ebb):
+        previous_ebb = new_open
 
     # ====================================================================
     # START SIGNAL CALCULATION
@@ -306,6 +380,7 @@ def calc_tide(open_i: np.array,
         else:
             new_ebb = previous_ebb
 
+
     # ====================================================================
     # END SIGNAL CALCULATION
     # ====================================================================
@@ -317,47 +392,43 @@ def calc_tide(open_i: np.array,
 def nb_tide(open_: np.array,
             high: np.array,
             low: np.array,
-            close: np.array,
             windows: np.array,
             thresholds: int,
             sensitivity: float,
-            fixed_window: bool):  # , tide: np.array, ebb: np.array, flow:np.array):
-    # ,sensitivity=sensitivity, thresholds=10,ticksize=0.01,window_scale=1,lookback_windows=[5,20,67]):
-    # indicators = [[tide_0,ebb_0,flow_0],
-    #               [tide_0,ebb_0,flow_0],
-    #               ...
-    #               ...
-    #               [tide_n,ebb_n,flow_n]]
+            fixed_window: bool):
 
-    n = len(close)
+    n = len(open_)
     max_lookback = np.max(windows)
 
     tide = np.full(n, np.nan)
+    # tide2 = np.full(n, np.nan)
+    # tidestr = np.full(n, np.nan)
     ebb = np.full(n, np.nan)
     flow = np.full(n, np.nan)
-    tide_n = np.full(n, np.nan)
+    # tide_ids = np.full(n, np.nan)
     
     previous_tide = np.nan
     previous_ebb = np.nan
     previous_flow = np.nan
-    counter = 0
+    # pos_tide_id = 0
+    # neg_tide_id = 0
     for i in range(max_lookback, n + 1):
         # i_s = [i for i in range(max_lookback,n)]
         if fixed_window:
             open_i = open_[i - max_lookback:i]
             high_i = high[i - max_lookback:i]
             low_i = low[i - max_lookback:i]
-            close_i = close[i - max_lookback:i]
+            # close_i = close[i - max_lookback:i]
         else:
             # expanding window
             open_i = open_[:i]
             high_i = high[:i]
             low_i = low[:i]
-            close_i = close[:i]
+            # close_i = close[:i]
         tide_i, ebb_i, flow_i = calc_tide(open_i=open_i,
                                           high_i=high_i,
                                           low_i=low_i,
-                                          close_i=close_i,
+                                          # close_i=close_i,
                                           previous_tide=previous_tide,
                                           previous_ebb=previous_ebb,
                                           previous_flow=previous_flow,
@@ -365,56 +436,70 @@ def nb_tide(open_: np.array,
                                           thresholds=thresholds,
                                           sensitivity=sensitivity)
         
-        tide_unused, ebb_unused, flow_i = calc_tide(open_i=open_i,
-                                                      high_i=high_i,
-                                                      low_i=low_i,
-                                                      close_i=close_i,
-                                                      previous_tide=tide_i,
-                                                      previous_ebb=ebb_i,
-                                                      previous_flow=flow_i,
-                                                      windows=windows,
-                                                      thresholds=thresholds,
-                                                      sensitivity=sensitivity)
+        # tide_unused, ebb_unused, flow_i = calc_tide(open_i=open_i,
+        #                                               high_i=high_i,
+        #                                               low_i=low_i,
+        #                                               close_i=close_i,
+        #                                               previous_tide=tide_i,
+        #                                               previous_ebb=ebb_i,
+        #                                               previous_flow=flow_i,
+        #                                               windows=windows,
+        #                                               thresholds=thresholds,
+        #                                               sensitivity=sensitivity)
         
-        if previous_tide != tide_i:
-            counter+=1
+        # if previous_tide != tide_i:
+        #     if tide_i > 0: 
+        #         pos_tide_id+=1
+        #         tide_id = pos_tide_id
+        #     elif tide_i < 0:
+        #         neg_tide_id-=1
+        #         tide_id = neg_tide_id
+        # if ebb_i > previous_ebb:
+        #     tide2[i - 1] = 1
+        #     tidestr[i - 1] = ebb_i/previous_ebb -1
+        # elif ebb_i < previous_ebb:
+        #     tide2[i - 1] = 0
+        #     tidestr[i - 1] = previous_ebb/ebb_i -1
+        # else:
+        #     tide2[i - 1] = tide2[i - 2]
+        #     tidestr[i - 1] = 0
             
         previous_tide = tide_i
         previous_ebb = ebb_i
         previous_flow = flow_i
         
-        tide_n[i-1] = counter
+        # tide_ids[i-1] = tide_id
         tide[i - 1] = tide_i
         ebb[i - 1] = ebb_i
         flow[i - 1] = flow_i
         
-    return tide, ebb, flow, tide_n
+    return tide, ebb, flow
 
 
-def calc_tides(df, sensitivity:int=50, thresholds:int=10, windows:np.ndarray=np.array([5, 20, 67])):
+def calc_tides(df, sensitivity:int=50, thresholds:int=10, windows:np.ndarray=np.array([5, 20, 67]),price=["open","high","low"],fixed_window = True, suffix="f"):
     assert type(sensitivity) == int
     assert type(thresholds) == int
     assert type(windows) == np.ndarray
     
-    open_ = df["open"].to_numpy()
-    high = df["high"].to_numpy()
-    low = df["low"].to_numpy()
-    close = df["close"].to_numpy()
+    open_ = df[price[0]].to_numpy()
+    high = df[price[1]].to_numpy()
+    low = df[price[2]].to_numpy()
+    # close = df["close"].to_numpy()
 
-    tides, ebb, flow,tide_n  = nb_tide(open_=open_,
+    tides, ebb, flow = nb_tide(open_=open_,
                                high=high,
                                low=low,
-                               close=close,
+                               # close=close,
                                windows=windows,
                                thresholds=thresholds,
                                sensitivity=sensitivity,
-                               fixed_window=True)
+                               fixed_window=fixed_window)
     
-    df["tide"] = tides
-    df["tide"]=df["tide"].replace(0,-1)
-    df["tide_id"] = tide_n
-    df["ebb"] = ebb
-    df["flow"] = flow
+    df[f"tide_{suffix}"] = tides
+    df[f"tide_{suffix}"]=df[f"tide_{suffix}"].replace(0,-1)
+    # df["tide_id"] = tide_ids
+    df[f"ebb_{suffix}"] = ebb
+    df[f"flow_{suffix}"] = flow
     # Other metrics needed from id
     # len of tide
     # str of tide (close[-1] - close[0])
@@ -461,8 +546,13 @@ def calc_slopes(df0,
     return df
     
 
+#%% VOLUME PROFILE
+def nb_vp():
+    pass
+
+
+#%% Tide metrics
 def calc_tide_metrics(klines_indicators_dict):
-    #%%
     test = {}
     for instrument, df in klines_indicators_dict.items():
         df1 = df.copy()
@@ -522,7 +612,10 @@ def tide_colors(series):
     return [r if e < 0 else g if e >0 else w for e in series]  
 
 
-if __name__ == "__main__":
+# if __name__ == "__main__":
     
-    print("calculating dollar bars")
-    dollar_bars = get_dollar_bars(df,dollar_threshold=10000)
+#     print("calculating dollar bars")
+#     dollar_bars = get_dollar_bars(df,dollar_threshold=10000)
+# #%%
+#     if input("Proceed? ") == "y":
+#         print("yes")

@@ -220,11 +220,13 @@ if __name__ == "__main__":
     #%%
     import ccxt 
     import pandas as pd
-    client = ccxt.kucoin()
+    client = ccxt.ftx()
     markets = client.load_markets()
     markets_df = pd.DataFrame(markets).T
     fut = pd.DataFrame([m for m in markets.values() if m["swap"]])
     spot =  pd.DataFrame([m for m in markets.values() if m["spot"]])
+    
+    spot.loc[spot['symbol'].str.contains("NVDA", case=False)]
     #%%
     client=ccxt.kucoinfutures()
     try:
@@ -242,6 +244,6 @@ if __name__ == "__main__":
     #%%
     from data.klines_ccxt import get_klines
     # test = get_klines(instrument="ftx_BTC-PERP_1h", update=False, reload=False)
-    test = get_klines(instrument="kucoinfutures_BTC/USD_1h", update=False, reload=False)
+    test = get_klines(instrument="ftx_FTM/USD_1h", update=False, reload=False)
     
 
