@@ -114,7 +114,8 @@ class DataManager(indicators_manager):
                 df = pd.merge(df,temp[tf], left_index=True,right_index=True,how="outer")
                     
             df = df.ffill()
-            df.dropna(inplace=True)
+            df.fillna(0,inplace=True)
+            # df.dropna(inplace=True)
             
             self.klines_indicators_dict[instrument] = df #klines_indicators_TF_dict
             

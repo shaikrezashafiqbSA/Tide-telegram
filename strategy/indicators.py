@@ -476,7 +476,12 @@ def nb_tide(open_: np.array,
     return tide, ebb, flow
 
 
-def calc_tides(df, sensitivity:int=50, thresholds:int=10, windows:np.ndarray=np.array([5, 20, 67]),price=["open","high","low"],fixed_window = True, suffix="f"):
+def calc_tides(df, sensitivity:int=50,
+               thresholds:int=10, 
+               windows:np.ndarray=np.array([5, 20, 67]),
+               price=["open","high","low"],
+               fixed_window = True,
+               suffix="_fast"):
     assert type(sensitivity) == int
     assert type(thresholds) == int
     assert type(windows) == np.ndarray
@@ -495,11 +500,11 @@ def calc_tides(df, sensitivity:int=50, thresholds:int=10, windows:np.ndarray=np.
                                sensitivity=sensitivity,
                                fixed_window=fixed_window)
     
-    df[f"tide_{suffix}"] = tides
-    df[f"tide_{suffix}"]=df[f"tide_{suffix}"].replace(0,-1)
+    df[f"tide{suffix}"] = tides
+    df[f"tide{suffix}"]=df[f"tide{suffix}"].replace(0,-1)
     # df["tide_id"] = tide_ids
-    df[f"ebb_{suffix}"] = ebb
-    df[f"flow_{suffix}"] = flow
+    df[f"ebb{suffix}"] = ebb
+    df[f"flow{suffix}"] = flow
     # Other metrics needed from id
     # len of tide
     # str of tide (close[-1] - close[0])

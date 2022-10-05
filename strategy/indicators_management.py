@@ -62,7 +62,7 @@ class indicators_manager:
         freq_number = int(freq[:-1])
         timeframe = freq[-1]
         
-        assert timeframe == "h"
+        # assert timeframe == "h"
         # if preprocess:
         return int(freq_number/int(self.base_timeframe[:-1]))
         # else:
@@ -109,9 +109,9 @@ class indicators_manager:
             if type(windows) is not np.ndarray:
                 windows = np.array(windows)*self.freq_map(freq)
                 # print(f"{windows}, type: {type(windows[0])}")
-            price = self.indicators["tide_slow"]["price"]  
+            price = self.indicators["tide_fast"]["price"]  
 
-            klines = calc_tides(klines,sensitivity=sensitivity, thresholds=thresholds, windows=windows,price=price, suffix="fast")
+            klines = calc_tides(klines,sensitivity=sensitivity, thresholds=thresholds, windows=windows,price=price, suffix="")
             
         if "slopes" in self.indicators.keys():
             slope_lengths = self.indicators["slopes"]["slope_lengths"]

@@ -23,6 +23,7 @@ setup(
         "numba",
         "tqdm",
         "matplotlib",
+        "ccxt",
         "plotly",
         "pandas_ta",
         "plotly_resampler",

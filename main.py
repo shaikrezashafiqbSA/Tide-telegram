@@ -32,11 +32,12 @@ class TidesUpdate:
                                       "db_path": "D:/OneDrive/database/",
                                       "output": "telegram/"},
                            "strategy": {"timeframes": ["1h","4h", "24h", "48h"],
-                                        "indicators": {'tide': {'window': [5,20,67],
-                                                                "sensitivity": [10],
-                                                                "thresholds": [5]},
-                                                       'mfi': {'length': [14], 'close': ['close']},
-                                                       'ema': {'length': [81], 'close': ['close']}
+                                        "indicators": {'tide_fast': {'window': [12,24,36],
+                                                                     "sensitivity": [10],
+                                                                     "thresholds": [20],
+                                                                     'price':['open','high','low']},
+                                                       'mfi': {'length': [14], 'price': ['close']},
+                                                       'ema': {'length': [81], 'price': ['close']}
                                                        },
                                         "resample": True
                                         },
@@ -112,8 +113,11 @@ if __name__ == "__main__":
     test= True
     if not test:
         instruments_equities = {"asset_class":"equities",
-                                "instruments":["SGX_CN1!",    
+                                "instruments":["CME_MINI_ES1!",
+                                               "CME_MINI_NQ1!"
+                                               "SGX_CN1!",    
                                                "SGX_TWN1!",
+                                               "TWSE_2330",
                                                "SGX_SGP1!",
                                                "HKEX_HSI1!",
                                                "HKEX_TCH1!",
@@ -122,8 +126,6 @@ if __name__ == "__main__":
                                                "NASDAQ_TSLA",
                                                "NASDAQ_NFLX",
                                                "NYSE_SE",
-                                               "CME_MINI_ES1!",
-                                               "CME_MINI_NQ1!"
                                                ]
                                 }
         
@@ -160,23 +162,28 @@ if __name__ == "__main__":
         scheduler.start()
     else:
         
-        instruments_crypto = {"asset_class":"crypto",
-                              "instruments":["ftx_BTC/USD",
-                                            "ftx_ETH/USD",
-                                            "ftx_SOL/USD",
-                                            "ftx_FTT/USD",
-                                            "ftx_FTM/USD",
-                                            "ftx_TSM/USD",
-                                            "ftx_NVDA/USD",
-                                            "ftx_AMD/USD",
-                                            "ftx_TSLA/USD",
-                                            ]
-                              }
+        instruments_equities = {"asset_class":"equities",
+                                "instruments":["CME_MINI_ES1!",
+                                               "CME_MINI_NQ1!"
+                                               "SGX_CN1!",    
+                                               "SGX_TWN1!",
+                                               "TWSE_2330",
+                                               "SGX_SGP1!",
+                                               "HKEX_HSI1!",
+                                               "HKEX_TCH1!",
+                                               "HKEX_ALB1!",
+                                               "COMEX_MINI_MGC1!",
+                                               "NASDAQ_TSLA",
+                                               "NASDAQ_NFLX",
+                                               "NYSE_SE",
+                                               ]
+                                }
         
-        tide_crypto = TidesUpdate(instruments=instruments_crypto,
-                                  db_update = False,
-                                  send_to_telegram = False)
-        tide_crypto.update()
+        tide_equities = TidesUpdate(instruments=instruments_equities,
+                                    db_update = True,
+                                    send_to_telegram = True)
+        
+        tide_equities.update()
         
         
         

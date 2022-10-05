@@ -17,7 +17,33 @@ def pickle_klines(data=None):
         else: 
             pickle.dump(data, handle)
             
+def get_signal_covariated(i,np_closePx, signals_dict,position="long",side="buy",entry_i = None) -> bool:
+    np_covariates_t = signals_dict["np_covariates_t"][-24*12:,3]
+    if len(np_covariates_t)< 24 * 12:
+        return False
+    
+    log_ret = np.diff(np.log(np_covariates_t))
+    tail = log_ret[-1]
+    z = (np.mean(tail) - np.mean(log_ret)) / np.std(log_ret)
+    res = (np.sign(z) * np.floor(abs(z)) * (abs(z) >= 2))
+    
+    if position == "long":        
+        if side == "buy": 
+            signal = res>=0.0001
+        elif side == "sell":
+            signal = res<=-0.0001
             
+    elif position == "short":
+        if side == "buy": 
+            signal = res<=-0.0001
+        elif side == "sell":
+            signal = res>=0.0001
+
+        
+    return signal
+
+
+       
 def get_signal(i,np_closePx, signals_dict,position="long",side="buy",entry_i = None)-> bool:
             
     if position == "long":        
@@ -166,16 +192,18 @@ def get_signal_MR(i,np_closePx, signals_dict,position="long",side="buy",entry_i 
 
 
 
-def _backtest(df0,
-             fee=0.0007,
-             slippage = 0.0003, # 3bps for slippage
-             long_notional=1000,
-             short_notional=1000,
-             signals = ["Y", "d", "s","u"], 
-             signal_function = None,
-             window=None,
-             min_holding_period=1,
-             max_positions = 5):
+def _backtest(df0: pd.DataFrame,
+              covariates: pd.DataFrame= None,
+              kline_to_trade = "1h_close",
+              fee=0.0007,
+              slippage = 0.0003, # 3bps for slippage
+              long_notional=1000,
+              short_notional=1000,
+              signals = None,# ["Y", "d", "s","u"], 
+              signal_function = None,
+              window=None,
+              min_holding_period=1,
+              max_positions = 5):
     if window is None:
         df=df0.copy()
     else:
@@ -183,8 +211,9 @@ def _backtest(df0,
         
     # signals related
     signals_dict = {}
-    for signal in signals:
-        signals_dict[signal] = df[signal].values
+    if signals is not None:
+        for signal in signals:
+            signals_dict[signal] = df[signal].values
         
     if signal_function is None:
         _get_signal = get_signal
@@ -196,12 +225,16 @@ def _backtest(df0,
         _get_signal = get_signal_meta
     elif signal_function == "meta_target":
         _get_signal = get_signal_meta_target
-
+    elif signal_function == "covariated":
+        _get_signal = get_signal_covariated
         
     # Piggyback signals dict for strat type TF / MR
     signals_dict["L"] = None         
     signals_dict["S"] = None  
-    
+    if covariates is not None:
+        assert 'closeTime' in covariates.columns
+        covariates_t_col_index = covariates.columns.get_loc("closeTime")
+        np_covariates = covariates.values
     # positions
     np_long_positions = np.full(len(df), np.nan)
     np_short_positions = np.full(len(df), np.nan)
@@ -233,7 +266,7 @@ def _backtest(df0,
     np_short_fees = np.full(len(df), np.nan)
     
     # last price
-    np_closePx = df['1h_close'].values
+    np_closePx = df[kline_to_trade].values
 
     
     # initialize state flags
@@ -245,8 +278,9 @@ def _backtest(df0,
 
 
     # t0=time.time()
-    for i in range(len(df)):
-            
+    for i,t in tqdm(zip(range(len(df)), df[f"{kline_to_trade}Time"])):
+        if covariates is not None:
+            signals_dict["np_covariates_t"] = np_covariates[np_covariates[:,covariates_t_col_index] <= t, :]
         # =============================================================================
         # ENTRIES
         # =============================================================================
@@ -254,7 +288,7 @@ def _backtest(df0,
         # ---------- #
         # ENTER LONG
         # ---------- #
-        signal = _get_signal(i,np_closePx, signals_dict,position="long",side="buy")
+        
         if (not in_long_position):
             signal = _get_signal(i,np_closePx, signals_dict,position="long",side="buy")
             if signal:
@@ -383,7 +417,7 @@ def _backtest(df0,
                 np_short_qty[i] = np_short_qty[i-1]
                 np_short_pnl[i] = (short_entry_Px-np_closePx[i])*np_short_qty[i]
                     
-    # END BACKTEST, summarise
+    # END BACKTEST, collate
     
     
     df["L_id"] = np_long_id
@@ -407,12 +441,14 @@ def _backtest(df0,
     df["S_rpnl"] = np_short_rpnl
     
     df["A_rpnl"] = np_pnl
-    df["B_pnl"] = df["1h_close"].pct_change()
+    df["B_pnl"] = df[kline_to_trade].pct_change()
     
     return df
 
 
 def backtest(df0,
+             covariates=None,
+             kline_to_trade = "1h_close",
              fee=0.0007,
              slippage = 0.0003, # 1bps for slippage
              long_notional=1000,
@@ -435,15 +471,17 @@ def backtest(df0,
         
     t0=time.time()
     df = _backtest(df0,
-                    fee = fee,
-                    slippage = slippage, # 1bps for slippage
-                    long_notional = long_notional,
-                    short_notional = short_notional,
-                    signals = signals, 
-                    signal_function=signal_function,
-                    window = window,
-                    min_holding_period = min_holding_period,
-                    max_positions = max_positions)
+                   covariates=covariates,
+                   kline_to_trade = kline_to_trade,
+                   fee = fee,
+                   slippage = slippage, # 1bps for slippage
+                   long_notional = long_notional,
+                   short_notional = short_notional,
+                   signals = signals, 
+                   signal_function=signal_function,
+                   window = window,
+                   min_holding_period = min_holding_period,
+                   max_positions = max_positions)
     dur_backtest = np.round(time.time()-t0,3)
     
     if produce_signal is False:
