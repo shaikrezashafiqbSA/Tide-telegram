@@ -29,7 +29,7 @@ class TidesUpdate:
         self.send_to_telegram = send_to_telegram
         if config is None:
             self.config = {"general":{"db_update": self.db_update,
-                                      "db_path": "D:/OneDrive/database/",
+                                      "db_path": "C:/Users/shaik/OneDrive/database/", #"D:/OneDrive/database/",
                                       "output": "telegram/"},
                            "strategy": {"timeframes": ["1h","4h", "24h", "48h"],
                                         "indicators": {'tide_fast': {'window': [12,24,36],
@@ -110,11 +110,11 @@ class TidesUpdate:
             
 #%%
 if __name__ == "__main__":
-    test= True
+    test= False
     if not test:
         instruments_equities = {"asset_class":"equities",
                                 "instruments":["CME_MINI_ES1!",
-                                               "CME_MINI_NQ1!"
+                                               "CME_MINI_NQ1!",
                                                "SGX_CN1!",    
                                                "SGX_TWN1!",
                                                "TWSE_2330",
@@ -132,9 +132,6 @@ if __name__ == "__main__":
         instruments_crypto = {"asset_class":"crypto",
                               "instruments":["ftx_BTC/USD",
                                             "ftx_ETH/USD",
-                                            "ftx_SOL/USD",
-                                            "ftx_FTT/USD",
-                                            "ftx_FTM/USD",
                                             "ftx_TSM/USD",
                                             "ftx_NVDA/USD",
                                             "ftx_AMD/USD",
@@ -149,7 +146,9 @@ if __name__ == "__main__":
         tide_crypto = TidesUpdate(instruments=instruments_crypto,
                                   db_update = True,
                                   send_to_telegram = True)
-        
+        tide_equities.update()
+        tide_crypto.update()
+
         # scheduler = BackgroundScheduler(daemon=False,timezone="Singapore")
         scheduler = BlockingScheduler(timezone="Singapore")
         scheduler.add_job(func=tide_equities.update, 
@@ -161,30 +160,46 @@ if __name__ == "__main__":
         
         scheduler.start()
     else:
-        
-        instruments_equities = {"asset_class":"equities",
-                                "instruments":["CME_MINI_ES1!",
-                                               "CME_MINI_NQ1!"
-                                               "SGX_CN1!",    
-                                               "SGX_TWN1!",
-                                               "TWSE_2330",
-                                               "SGX_SGP1!",
-                                               "HKEX_HSI1!",
-                                               "HKEX_TCH1!",
-                                               "HKEX_ALB1!",
-                                               "COMEX_MINI_MGC1!",
-                                               "NASDAQ_TSLA",
-                                               "NASDAQ_NFLX",
-                                               "NYSE_SE",
-                                               ]
+
+        instruments_equities = {"asset_class": "equities",
+                                "instruments": ["CME_MINI_ES1!",
+                                                "CME_MINI_NQ1!",
+                                                "SGX_CN1!",
+                                                "SGX_TWN1!",
+                                                "TWSE_2330",
+                                                "SGX_SGP1!",
+                                                "HKEX_HSI1!",
+                                                "HKEX_TCH1!",
+                                                "HKEX_ALB1!",
+                                                "COMEX_MINI_MGC1!",
+                                                "NASDAQ_TSLA",
+                                                "NASDAQ_NFLX",
+                                                "NYSE_SE",
+                                                ]
                                 }
-        
+
+        instruments_crypto = {"asset_class": "crypto",
+                              "instruments": ["ftx_BTC/USD",
+                                              "ftx_ETH/USD",
+                                              "ftx_TSM/USD",
+                                              "ftx_NVDA/USD",
+                                              "ftx_AMD/USD",
+                                              "ftx_TSLA/USD",
+                                              ]
+                              }
+
         tide_equities = TidesUpdate(instruments=instruments_equities,
-                                    db_update = True,
-                                    send_to_telegram = True)
+                                    db_update=True,
+                                    send_to_telegram=True)
+
+        tide_crypto = TidesUpdate(instruments=instruments_crypto,
+                                  db_update=True,
+                                  send_to_telegram=True)
+        
+
         
         tide_equities.update()
-        
+        tide_crypto.update()
         
         
     

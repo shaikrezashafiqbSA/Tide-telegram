@@ -21,7 +21,9 @@ setup(
     install_requires=[
         "pandas",
         "numba",
+        "ccxt",
         "tqdm",
+        "sqlite3",
         "matplotlib",
         "ccxt",
         "plotly",
