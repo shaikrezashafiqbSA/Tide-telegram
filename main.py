@@ -29,8 +29,8 @@ class TidesUpdate:
         self.send_to_telegram = send_to_telegram
         if config is None:
             self.config = {"general":{"db_update": self.db_update,
-                                      # "db_path": "C:/Users/shaik/OneDrive/database/",  #"D:/OneDrive/database/",
-                                      "db_path": "D:/OneDrive/database/",
+                                      "db_path": "C:/Users/shaik/OneDrive/database/",  #"D:/OneDrive/database/",
+                                      # "db_path": "D:/OneDrive/database/",
                                       "output": "telegram/"},
                            "strategy": {"timeframes": ["1h","4h", "24h", "48h"],
                                         "indicators": {'tide_fast': {'window': [12,24,36],
@@ -89,15 +89,17 @@ class TidesUpdate:
         # =======================================
         if self.send_to_telegram:
             file = open(f"tides_{self.asset_class}.html",'rb')
-            retry = True
-            while retry:
+            retry = 0
+            while retry < 1:
                 try:
                     bot.send_document(chat_id, file)
                 except Exception as e:
-                    bot.send_message(text=f"{self.asset_class} ERROR {e}\nretrying in 5 minutes", chat_id=chat_id)
+                    retry += 1
+                    bot.send_message(text=f"{self.asset_class} ERROR {e}\nretry {retry} in 5 minutes", chat_id=chat_id)
+                    print(e)
                     time.sleep(300)
-                else:
-                    retry = False
+
+
 
             print(f"Sent tides_{self.asset_class} to telegram")
 
@@ -106,15 +108,17 @@ class TidesUpdate:
         metrics_df = calc_tide_metrics(self.klines_indicators_dict)
         dfi.export(metrics_df, f"telegram/summary_{self.asset_class}.png")
         if self.send_to_telegram:
-            retry = True
-            while retry:
+            retry = 0
+            while retry < 1:
                 try:
                     bot.send_photo(chat_id, photo=open(f'telegram/summary_{self.asset_class}.png', 'rb'),caption=f"{self.asset_class} snapshot")
                 except Exception as e:
-                    bot.send_message(text=f"{self.asset_class} ERROR {e}\nretrying in 5 minutes", chat_id=chat_id)
+                    retry += 1
+                    bot.send_message(text=f"{self.asset_class} ERROR {e}\nretry {retry} in 5 minutes", chat_id=chat_id)
+                    print(e)
                     time.sleep(300)
-                else:
-                    retry = False
+
+
 
             print(f"Sent summary_{self.asset_class}.png to telegram")
         
@@ -217,7 +221,7 @@ if __name__ == "__main__":
         
 
         
-        # tide_equities.update()
+        tide_equities.update()
         tide_crypto.update()
         
         
