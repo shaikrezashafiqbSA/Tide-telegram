@@ -77,8 +77,7 @@ class DataManager(indicators_manager):
                                                  update=self.update_db,
                                                  reload=False)
                     else:
-                        klines = get_klines_TV(instrument=f"{instrument}_{freq}",
-                                               db_path = self.db_path,
+                        klines = get_klines_TV(instrument=f"{instrument}_{freq}", db_path = self.db_path,
                                                update=self.update_db,
                                                reload=False)
                     

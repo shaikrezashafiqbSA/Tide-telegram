@@ -21,7 +21,7 @@ class TidesUpdate:
     def __init__(self, 
                  instruments, 
                  db_update,
-                 config = None,
+                         config = None,
                  send_to_telegram = True):
         self.instruments = instruments
         self.db_update = db_update
@@ -29,8 +29,8 @@ class TidesUpdate:
         self.send_to_telegram = send_to_telegram
         if config is None:
             self.config = {"general":{"db_update": self.db_update,
-                                      # "db_path": "C:/Users/shaik/OneDrive/database/",  #"D:/OneDrive/database/",
-                                      "db_path": "D:/OneDrive/database/",
+                                      "db_path": "C:/Users/shaik/OneDrive/database/",  #"D:/OneDrive/database/",
+                                      # "db_path": "D:/OneDrive/database/",
                                       "output": "telegram/"},
                            "strategy": {"timeframes": ["1h","4h", "24h", "48h"],
                                         "indicators": {'tide_fast': {'window': [12,24,36],
@@ -150,6 +150,9 @@ if __name__ == "__main__":
                                                "HKEX_TCH1!",
                                                "HKEX_ALB1!",
                                                "COMEX_MINI_MGC1!",
+                                               "NYMEX_MINI_QG1!",
+                                               "CBOT_MINI_10Y1!",
+                                               "ICEUS_DX1!",
                                                "NASDAQ_TSLA",
                                                "NASDAQ_NFLX",
                                                "NYSE_SE",
@@ -170,20 +173,20 @@ if __name__ == "__main__":
                                     db_update = True,
                                     send_to_telegram = True)
         
-        tide_crypto = TidesUpdate(instruments=instruments_crypto,
-                                  db_update = True,
-                                  send_to_telegram = True)
+        # tide_crypto = TidesUpdate(instruments=instruments_crypto,
+        #                           db_update = True,
+        #                           send_to_telegram = True)
         tide_equities.update()
-        tide_crypto.update()
+        # tide_crypto.update()
 
         # scheduler = BackgroundScheduler(daemon=False,timezone="Singapore")
         scheduler = BlockingScheduler(timezone="Singapore")
         scheduler.add_job(func=tide_equities.update, 
                           trigger='cron',
                           minute="15")
-        scheduler.add_job(func=tide_crypto.update, 
-                          trigger='cron',
-                          minute="1")
+        # scheduler.add_job(func=tide_crypto.update,
+        #                   trigger='cron',
+        #                   minute="1")
         
         scheduler.start()
     else:
@@ -199,6 +202,7 @@ if __name__ == "__main__":
                                                 "HKEX_TCH1!",
                                                 "HKEX_ALB1!",
                                                 "COMEX_MINI_MGC1!",
+                                                "NYMEX_MINI_QG1!",
                                                 "NASDAQ_TSLA",
                                                 "NASDAQ_NFLX",
                                                 "NYSE_SE",
