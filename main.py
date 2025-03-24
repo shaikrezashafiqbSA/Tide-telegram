@@ -24,6 +24,7 @@ class TidesUpdate:
                          config = None,
                  send_to_telegram = True):
         self.instruments = instruments
+
         self.db_update = db_update
         self.asset_class = instruments["asset_class"]
         self.send_to_telegram = send_to_telegram
@@ -143,10 +144,10 @@ if __name__ == "__main__":
                                 "instruments":["CME_MINI_ES1!",
                                                "CME_MINI_NQ1!",
                                                "SGX_CN1!",    
-                                               "SGX_TWN1!",
+                                               # "SGX_TWN1!",
                                                "TWSE_2330",
                                                "SGX_SGP1!",
-                                               "HKEX_HSI1!",
+                                               # "HKEX_HSI1!",
                                                "HKEX_TCH1!",
                                                "HKEX_ALB1!",
                                                "COMEX_MINI_MGC1!",
